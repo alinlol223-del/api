@@ -8,8 +8,12 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/send-dmca",
+      "dest": "/api/send-dmca.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/send-dmca.js"
     }
   ]
 }
