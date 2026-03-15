@@ -6,14 +6,14 @@ const cors = require('cors');
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // Prevent huge payloads
 app.use(cors({
-  origin: '*',           // ← for testing your Chrome extension; change to specific origin later if needed
+  origin: '*', // Change to your Chrome extension ID later, e.g. 'chrome-extension://your-extension-id'
   methods: ['POST'],
-  allowedHeaders: ['Content-Type']
+  allowedHeaders: ['Content-Type', 'Authorization'] // If you add API key later
 }));
 
-// Gmail transporter using app password
+// Transporter (Gmail)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -22,52 +22,50 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Main POST endpoint (all requests to this file go here)
+// Validate env vars on startup (helps debug)
+if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  console.error('Missing GMAIL_USER or GMAIL_APP_PASSWORD env vars');
+}
+
+// POST handler
 app.post('/', async (req, res) => {
   const { to, subject, body, forwardTo } = req.body;
 
-  // Required fields check
   if (!to || !body) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: "to" and "body"'
-    });
+    return res.status(400).json({ success: false, error: 'Missing "to" and/or "body"' });
+  }
+
+  // Basic email format check (optional but helpful)
+  if (!to.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Invalid "to" email' });
   }
 
   try {
-    // 1. Send the DMCA notice to Roblox
+    // Send to recipient (e.g. Roblox DMCA email)
     await transporter.sendMail({
-      from: `"RoDown DMCA" <${process.env.GMAIL_USER}>`,
-      to: to,
+      from: `"RoDown DMCA Tool" <${process.env.GMAIL_USER}>`,
+      to,
       subject: subject || 'DMCA Takedown Request',
-      text: body
+      text: body,
+      // html: `<pre>${body}</pre>` // optional: if you want better formatting
     });
 
-    // 2. Optional: send copy to the user who submitted it
-    if (forwardTo && forwardTo.trim()) {
+    // Optional forward
+    if (forwardTo && forwardTo.trim() && forwardTo.includes('@')) {
       await transporter.sendMail({
-        from: `"RoDown DMCA" <${process.env.GMAIL_USER}>`,
+        from: `"RoDown DMCA Tool" <${process.env.GMAIL_USER}>`,
         to: forwardTo,
-        subject: 'Copy: Your DMCA notice was sent to Roblox',
-        text: `Your report has been forwarded to Roblox.\n\n--- Original message ---\n\n${body}\n\nThank you.`
+        subject: 'Copy: Your DMCA Notice Sent',
+        text: `Your DMCA request was sent successfully.\n\nOriginal:\n${body}`
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: 'DMCA email sent successfully'
-    });
-
+    res.status(200).json({ success: true, message: 'DMCA notice sent' });
   } catch (error) {
-    console.error('Send error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to send email',
-      details: error.message
-    });
+    console.error('Email error:', error);
+    // Don't expose full error to client
+    res.status(500).json({ success: false, error: 'Failed to send email. Check server logs.' });
   }
 });
 
-// Required for Vercel serverless functions
-module.exports = app; 
-//test
+module.exports = app;
