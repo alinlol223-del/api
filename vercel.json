@@ -2,18 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/send-dmca",
-      "dest": "/api/send-dmca.js"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/api/send-dmca.js"
+      "dest": "/api/index.js"
     }
   ]
 }
