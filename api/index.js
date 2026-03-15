@@ -1,10 +1,27 @@
 // api/index.js
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const cors = require('cors');
+
+const corsMiddleware = cors({
+  origin: true,                 // Allow any origin (including chrome-extension://)
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+  credentials: false,
+  optionsSuccessStatus: 204     // Important for preflight
+});
 
 module.exports = async (req, res) => {
+  // Handle CORS preflight OPTIONS request (browser sends this first)
+  corsMiddleware(req, res, () => {});
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  // Only allow POST after preflight
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: `Method ${req.method} not allowed. Use POST only.` });
+    return res.status(405).json({ success: false, error: `Method ${req.method} not allowed` });
   }
 
   let bodyData;
@@ -46,17 +63,16 @@ module.exports = async (req, res) => {
         from: `"RoDown DMCA Tool" <${process.env.GMAIL_USER}>`,
         to: forwardTo,
         subject: 'Copy: Your DMCA Notice Sent',
-        text: `Your DMCA notice was successfully sent to Roblox.\n\nOriginal message:\n${body}`
+        text: `Your DMCA notice was successfully sent to Roblox.\n\nOriginal:\n${body}`
       });
     }
 
-    console.log(`✅ DMCA sent to ${to} | Forward: ${forwardTo || 'none'}`);
     res.status(200).json({ success: true, message: 'DMCA notice sent successfully' });
   } catch (err) {
-    console.error('Nodemailer error:', err.message);
+    console.error('Email error:', err.message);
     res.status(500).json({ 
       success: false, 
-      error: err.message.includes('535') ? 'Gmail login failed – check app password' : 'Failed to send email' 
+      error: 'Failed to send email – check server logs'
     });
   }
 };
